@@ -1,0 +1,20 @@
+# Android / Gradle (archivos generados, no se suben)
+.gradle/
+build/
+app/build/
+local.properties
+.idea/
+*.iml
+.DS_Store
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Firma del APK: NUNCA subir llaves ni contraseñas
+*.jks
+*.keystore
+keystore.properties
+
+# Backend Spring Boot
+trazamar-backend/target/
+*.db
