@@ -3,10 +3,15 @@ package cl.aldemar.trazamar.data.repository
 import android.content.Context
 import cl.aldemar.trazamar.data.local.AppDatabase
 import cl.aldemar.trazamar.data.local.entities.UsuarioEntity
+import cl.aldemar.trazamar.data.model.dto.UsuarioDto
+import cl.aldemar.trazamar.data.remote.ApiService
+import cl.aldemar.trazamar.data.remote.LoginRemotoRequest
+import cl.aldemar.trazamar.data.remote.RetrofitInstance
 import cl.aldemar.trazamar.data.session.SessionManager
 import cl.aldemar.trazamar.data.session.SesionUsuario
-import cl.aldemar.trazamar.data.model.dto.UsuarioDto
 import kotlinx.coroutines.flow.Flow
+import retrofit2.HttpException
+import java.io.IOException
 import java.security.MessageDigest
 import java.time.LocalDateTime
 
@@ -20,7 +25,16 @@ internal fun hashPassword(password: String): String = MessageDigest.getInstance(
 
 internal fun UsuarioEntity.aUsuarioDto() = UsuarioDto(id, username, nombreCompleto, rol, activo, createdAt)
 
-class AuthRepository(private val context: Context) {
+/**
+ * Login por rol.
+ * 1) Primero intenta iniciar sesión en el backend Spring Boot (Retrofit) y guarda el token.
+ * 2) Si NO hay conexión (IOException), entra con los usuarios guardados en el teléfono (modo terreno offline).
+ * 3) Si el backend responde 401 (clave mala), NO se usa el modo offline: se muestra el error.
+ */
+class AuthRepository(
+    private val context: Context,
+    private val api: ApiService = RetrofitInstance.api,
+) {
     private val dao = AppDatabase.getInstance(context).usuarioDao()
     private val session = SessionManager(context)
 
@@ -40,11 +54,28 @@ class AuthRepository(private val context: Context) {
     }
 
     suspend fun login(username: String, password: String): ResultadoApi<String> {
-        prepararDatosIniciales()
         if (username.isBlank() || password.isBlank()) return ResultadoApi.Error("Ingresa usuario y contraseña.")
+        return try {
+            // ---------- 1) Login en el backend ----------
+            val respuesta = api.login(LoginRemotoRequest(username.trim(), password))
+            val u = respuesta.usuario
+            session.guardarSesion(respuesta.token, u.id, u.username, u.nombreCompleto, u.rol)
+            ResultadoApi.Exito(u.rol)
+        } catch (e: HttpException) {
+            // El backend respondió, pero rechazó el login (401 = credenciales incorrectas)
+            if (e.code() == 401) ResultadoApi.Error("Usuario o contraseña incorrectos, o cuenta desactivada.")
+            else ResultadoApi.Error("El servidor respondió con un error (${e.code()}).")
+        } catch (e: IOException) {
+            // ---------- 2) Sin conexión: login local (offline) ----------
+            loginLocal(username, password)
+        }
+    }
+
+    private suspend fun loginLocal(username: String, password: String): ResultadoApi<String> {
+        prepararDatosIniciales()
         val usuario = dao.porUsername(username.trim())
         if (usuario == null || !usuario.activo || usuario.passwordHash != hashPassword(password)) {
-            return ResultadoApi.Error("Usuario o contraseña incorrectos, o cuenta desactivada.")
+            return ResultadoApi.Error("Sin conexión: usuario o contraseña incorrectos en el modo offline.")
         }
         session.guardarSesion("local_${usuario.id}", usuario.id, usuario.username, usuario.nombreCompleto, usuario.rol)
         return ResultadoApi.Exito(usuario.rol)

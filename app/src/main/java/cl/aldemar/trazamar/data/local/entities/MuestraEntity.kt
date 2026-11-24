@@ -34,4 +34,8 @@ data class MuestraEntity(
     val comentarioSupervisor: String?,
     val supervisorNombre: String?,
     val sincronizada: Boolean = true,
+    // Código único (UUID) que identifica la muestra en el teléfono Y en el backend: evita duplicados al sincronizar
+    val codigo: String? = null,
+    // id que le asignó el backend Spring Boot (null = todavía no se ha subido)
+    val servidorId: Int? = null,
 )

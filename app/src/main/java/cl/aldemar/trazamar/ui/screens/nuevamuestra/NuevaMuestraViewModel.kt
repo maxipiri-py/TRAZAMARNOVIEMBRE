@@ -117,6 +117,12 @@ class NuevaMuestraViewModel(application: Application) : AndroidViewModel(applica
             _uiState.update { it.copy(error = "Completa centro, tren, línea y fecha para continuar.") }
             return false
         }
+        // El backend exige un tramo mayor a 0 (en metros, ej: 0.2 = 20 cm)
+        val tramo = e.tramoMetros.replace(',', '.').toDoubleOrNull()
+        if (tramo == null || tramo <= 0.0 || tramo > 50.0) {
+            _uiState.update { it.copy(error = "Ingresa un tramo válido en metros (ej: 0.2 = 20 cm).") }
+            return false
+        }
         _uiState.update { it.copy(paso = PasoRegistro.FOTOGRAFIA, error = null) }
         return true
     }
@@ -129,7 +135,7 @@ class NuevaMuestraViewModel(application: Application) : AndroidViewModel(applica
         viewModelScope.launch {
             val request = CrearMuestraRequest(
                 centroId = e.centroId!!, trenId = e.trenId!!, lineaId = e.lineaId!!,
-                fecha = e.fecha, hora = e.hora, tramoMetros = e.tramoMetros.toDoubleOrNull(),
+                fecha = e.fecha, hora = e.hora, tramoMetros = e.tramoMetros.replace(',', '.').toDoubleOrNull(),
                 operadorId = opId,
             )
             when (val r = muestraRepo.crearMuestra(request)) {

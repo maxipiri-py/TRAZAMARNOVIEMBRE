@@ -7,12 +7,35 @@ import cl.aldemar.trazamar.data.local.entities.CentroEntity
 import cl.aldemar.trazamar.data.local.entities.TrenEntity
 import cl.aldemar.trazamar.data.local.entities.LineaEntity
 import cl.aldemar.trazamar.data.model.dto.*
+import cl.aldemar.trazamar.data.remote.ApiService
+import cl.aldemar.trazamar.data.remote.RetrofitInstance
 
-class CatalogoRepository(context: Context) {
+class CatalogoRepository(
+    context: Context,
+    private val api: ApiService = RetrofitInstance.api,
+) {
     private val db = AppDatabase.getInstance(context)
     private val dao = db.catalogoDao()
 
+    /**
+     * Descarga centros, trenes y líneas del backend y los guarda en Room (REPLACE = actualiza si ya existían).
+     * Si no hay conexión, no pasa nada: la app usa los catálogos que ya tenía guardados.
+     */
+    private suspend fun descargarCatalogos() {
+        try {
+            val centros = api.centros()
+            val trenes = api.trenes()
+            val lineas = api.lineas()
+            dao.insertarCentros(centros.map { CentroEntity(it.id, it.nombre, it.codigo, it.activo) })
+            dao.insertarTrenes(trenes.map { TrenEntity(it.id, it.nombre, it.centroId, it.activo) })
+            dao.insertarLineas(lineas.map { LineaEntity(it.id, it.nombre, it.trenId, it.activo) })
+        } catch (e: Exception) {
+            // Sin internet: seguimos con lo guardado en el teléfono
+        }
+    }
+
     suspend fun obtenerCentros(): ResultadoApi<List<CentroDto>> = try {
+        descargarCatalogos()
         asegurarCatalogoInicial()
         ResultadoApi.Exito(dao.obtenerCentros().filter { it.activo }.map { c ->
             val trenes = dao.obtenerTrenes().filter { it.centroId == c.id && it.activo }.map { t ->

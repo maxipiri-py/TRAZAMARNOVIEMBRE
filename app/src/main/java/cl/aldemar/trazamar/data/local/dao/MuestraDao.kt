@@ -22,6 +22,16 @@ interface MuestraDao {
     @Query("SELECT * FROM muestras_cache WHERE id = :id")
     suspend fun obtenerPorId(id: Int): MuestraEntity?
 
+    // Muestras guardadas en el teléfono que todavía no llegan al backend
+    @Query("SELECT * FROM muestras_cache WHERE sincronizada = 0")
+    suspend fun pendientes(): List<MuestraEntity>
+
+    @Query("SELECT COUNT(*) FROM muestras_cache WHERE sincronizada = 0")
+    fun observarPendientes(): Flow<Int>
+
+    @Query("SELECT * FROM muestras_cache WHERE codigo = :codigo LIMIT 1")
+    suspend fun porCodigo(codigo: String): MuestraEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertarTodas(muestras: List<MuestraEntity>)
 
