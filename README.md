@@ -1,137 +1,81 @@
-# TrazaMar (AquaSample) — MVP de trazabilidad de muestreo de choritos
+# TrazaMar — AquaSample (ALDEMAR SpA)
 
-Proyecto para ALDEMAR SpA — DSY1105, equipo NotFound-Devs.
-Este repositorio contiene **tres componentes independientes** que conforman la solución completa:
+App móvil y backend para el **registro, conteo y trazabilidad de muestras de choritos** por centro, tren, línea y fecha.
+DSY1105 · Sección 04V · Equipo **NotFound-Devs**. Todos los datos son ficticios.
 
-```
-trazamar/
-├── backend/        API REST (Node.js + Express + Sequelize/SQLite)
-├── web-panel/      Panel web para el Analista (React + Vite)
-└── android-app/    App móvil (Kotlin + Jetpack Compose) — Operador, Supervisor, Analista, Admin
-```
-
-## 1. ¿Por qué esta arquitectura?
-
-- **Backend único** para que la app móvil (Operador/Supervisor/Analista) y el panel web (Analista/Admin/Supervisor
-  desde su computador) compartan siempre los mismos datos, en tiempo real.
-- **SQLite** como motor de base de datos: cero configuración para correr el proyecto en un contexto académico, pero
-  el código usa Sequelize, por lo que migrar a PostgreSQL en el futuro solo requiere cambiar `dialect` en
-  `backend/src/config/database.js`.
-- **Room (SQLite local)** en la app Android como caché: el Operador y Supervisor pueden seguir viendo su último
-  historial sincronizado aunque pierdan conexión en terreno.
-- **Roles y permisos** aplicados en el backend (middleware JWT) — cada endpoint valida el rol, no solo la app.
-
-## 2. Cómo correr el Backend
-
-```bash
-cd backend
-npm install
-cp .env.example .env
-npm run seed      # crea las tablas y datos ficticios de prueba
-npm run dev        # o "npm start"
-```
-
-El servidor queda en `http://localhost:4000`. Health check: `GET /api/health`.
-
-### Usuarios de prueba (creados por el seed)
-
-| Usuario       | Contraseña   | Rol                     |
-|---------------|--------------|-------------------------|
-| `admin`       | `Aqua2026*`  | Administrador           |
-| `operador1`   | `Aqua2026*`  | Operador de muestreo    |
-| `supervisor1` | `Aqua2026*`  | Supervisor técnico      |
-| `analista1`   | `Aqua2026*`  | Analista de reportes    |
-
-> En producción real, cambia `JWT_SECRET` en `.env` y usa contraseñas propias — estas son solo para la demo académica.
-
-## 3. Cómo correr el Panel Web (Analista / Supervisor / Admin desde el computador)
-
-```bash
-cd web-panel
-npm install
-npm run dev
-```
-
-Se abre en `http://localhost:5173` (Vite). Por defecto apunta a `http://localhost:4000/api` (ver `web-panel/.env`,
-variable `VITE_API_URL`) — cambia esa URL si el backend corre en otra máquina.
-
-El panel web es para **analista, supervisor y administrador** (el operador solo usa la app móvil).
-
-## 4. Cómo correr la App Android
-
-1. Abre la carpeta `android-app/` con **Android Studio** (Koala o superior).
-2. Abre el proyecto y deja que Android Studio sincronice Gradle. Si Android Studio solicita instalar SDK/Build Tools, acepta las versiones indicadas por el proyecto.
-3. Ejecuta en un **emulador**: la URL base ya apunta a `http://10.0.2.2:4000/api/`, que es como el emulador ve el
-   `localhost` de tu computador — así que solo necesitas tener el backend corriendo en tu PC.
-4. Si vas a probar en un **celular físico**, cambia `BASE_URL` en `android-app/app/build.gradle.kts` por la IP de tu
-   computador en la red local (ej. `http://192.168.1.10:4000/api/`) y asegúrate de que el firewall permita la conexión.
-
-### Permisos que pedirá la app
-- **Cámara**: para fotografiar la evidencia de cada muestra (Paso 2 del registro).
-- **Galería / almacenamiento**: como alternativa a la cámara.
-
-## 5. Roles del sistema (resumen funcional)
-
-| Rol                    | Dónde opera          | Qué puede hacer |
-|-------------------------|----------------------|------------------|
-| **Operador de muestreo** | App móvil            | Crear muestras (formulario → foto → conteo → resumen), ver su propio historial, corregir muestras observadas. |
-| **Supervisor técnico**   | App móvil            | Ver muestras pendientes/corregidas, **validar** u **observar** con comentario. |
-| **Analista de reportes** | App móvil **y** Panel Web | Ver historial completo, filtrar por centro/tren/línea/estado/fecha, ver gráficos (dashboard web) y exportar CSV. |
-| **Administrador**        | App móvil (y backend)| Crear/editar/desactivar cuentas y asignar roles; administrar centros, trenes y líneas. |
-
-## 6. Identidad visual
-
-Paleta oficial (azules de bahía + verde alga), aplicada de forma consistente en el panel web y la app Android:
-
-| Color | Uso |
+## Integrantes
+| Integrante | Rol en el proyecto |
 |---|---|
-| `#0D6E8C` (Bahía) | Color principal — barras, botones primarios |
-| `#2FA88C` (Alga) | Color secundario — acentos, estado "validada" |
-| `#E8A33D` (Ámbar) | Estado "pendiente" / "observada" |
-| `#C1443C` (Rojo) | Errores y validaciones |
-| `#F2F7F7` | Fondo general |
-| `#1B2A2E` | Texto principal |
+| Matías Sandoval (Matias-SR) | Líder · Desarrollo FullStack (app Android) |
+| Yonathan Machado (Yona36) | Backend y documentación |
+| Maximiliano Cáceres (maxipiri-py) | Base de datos · backend Spring Boot · integración Retrofit |
 
-## 7. Decisiones de diseño y alcance del MVP
+## Problemática
+El operador cuenta choritos a mano y registra los datos en planillas, fotos y notas por separado. Eso genera diferencias de conteo, registros incompletos y reportes lentos de armar.
+TrazaMar centraliza el registro con fotografía, el flujo de revisión por rol y el historial por línea de cultivo, y funciona sin conexión en terreno.
 
-- La pantalla de **"Revisión"** del Supervisor se implementó como un **modal de detalle** dentro del Historial
-  (en vez de una pantalla separada), para evitar duplicar la lógica de listado/filtrado. Cumple la misma función:
-  ver el detalle completo y validar/observar con comentario.
-- Los pasos **Fotografía → Conteo → Resumen** del registro de una muestra se implementaron como un **wizard de 4
-  pasos dentro de una sola pantalla** (`NuevaMuestraScreen`), compartiendo un mismo ViewModel — esto es equivalente
-  en experiencia de usuario a tener 4 pantallas separadas, pero más simple de mantener.
-- El **modo offline** de la app está parcialmente implementado: cada vez que el Operador/Supervisor sincroniza el
-  historial, se guarda una copia en una base de datos Room local. Una mejora futura natural es que el Historial lea
-  automáticamente desde esa caché cuando no hay conexión (actualmente solo se usa para no perder lo último visto).
-- El backend usa **SQLite** por simplicidad de instalación; el modelo de datos (Sequelize) ya está listo para
-  migrar a PostgreSQL cambiando una sola línea de configuración.
+## Arquitectura
+```
+App Android (Kotlin + Jetpack Compose + Material 3, MVVM)
+   │  Room (SQLite local, offline first)
+   │  Retrofit + Gson
+   ▼
+Backend Spring Boot 3 (REST + Swagger/OpenAPI)
+   │  Spring Data JPA
+   ▼
+SQLite (trazamar.db)
+```
+- **Offline first:** la app guarda primero en Room y luego sincroniza con el backend. Sin red, la muestra queda pendiente y se sube después, sin duplicarse gracias a su `codigo` único.
+- **Roles:** operador (registra y envía), supervisor (valida u observa), analista (consulta) y admin (usuarios y catálogos).
+- **Estados de una muestra:** borrador → pendiente → observada → corregida → validada.
 
-## 8. Comprobaciones y correcciones incluidas
+## Estructura del repositorio
+```
+app/                 App Android (cl.aldemar.trazamar)
+trazamar-backend/    Backend Spring Boot + SQLite
+docs/                Documentación del proyecto
+```
 
-Se corrigieron problemas de seguridad e integración detectados en la revisión:
+## Backend: cómo ejecutarlo
+Requisitos: Java 17 o superior.
+1. Abrir `trazamar-backend/` en VS Code o IntelliJ.
+2. Ejecutar `TrazamarBackendApplication` (o `mvn spring-boot:run`).
+3. **Swagger UI:** http://localhost:8080/swagger-ui.html
 
-- El operador solo puede consultar, editar, fotografiar y enviar sus propias muestras.
-- Al crear una muestra, el backend usa el ID del operador autenticado en vez de confiar en un ID enviado por el cliente.
-- Se agregó validación del formato `HH:mm` y del conteo de individuos.
-- La edición de usuarios valida que el rol sea uno de los roles soportados.
-- El backend ahora devuelve 404 para rutas inexistentes y maneja errores de carga de imágenes como errores de cliente.
-- La sesión del panel web se valida contra `/api/auth/me` al recargar la página.
-- La URL de las fotografías en Android ya no está fija a `10.0.2.2`; se construye a partir de `BASE_URL`.
-- Se eliminaron carpetas placeholder accidentales que venían dentro del proyecto.
-- El backend permite configurar `PORT`, `JWT_SECRET`, `DB_LOGGING` y `DB_STORAGE` mediante `.env`.
+La base `trazamar.db` se crea automáticamente con datos de ejemplo.
+Usuarios demo (contraseña `1234`): `OP-01`, `OP-02`, `SUP-01`, `AN-01`, `ADMIN-01`.
 
-### Verificación
+### Endpoints
+| Método | Endpoint | Rol requerido |
+|---|---|---|
+| POST | /api/auth/login | — |
+| GET | /api/auth/me | token |
+| GET | /api/catalogos/centros · /trenes · /lineas | — |
+| POST | /api/catalogos/centros · /trenes · /lineas | admin |
+| GET | /api/muestras (filtros: estado, centroId, lineaId) | — |
+| GET | /api/muestras/{id} | — |
+| POST | /api/muestras | — |
+| PUT | /api/muestras/{id} | — (solo en borrador u observada) |
+| DELETE | /api/muestras/{id} | operador, admin |
+| POST | /api/muestras/{id}/enviar | operador, admin |
+| PATCH | /api/muestras/{id}/revision | supervisor, admin |
+| GET / POST | /api/usuarios | admin |
+| PATCH | /api/usuarios/{id}/activo | admin |
 
-La sintaxis de todos los archivos JavaScript del backend fue comprobada correctamente. La compilación completa de dependencias no pudo ejecutarse en el entorno de revisión porque el acceso al registro de npm falló durante la instalación; por eso se recomienda ejecutar `npm install` y los comandos de build indicados abajo en tu PC.
+El token se envía como `Authorization: Bearer <token>` (botón **Authorize** en Swagger).
 
-## 9. Estructura de la base de datos (resumen)
+## App Android: cómo ejecutarla
+1. Levantar primero el backend.
+2. Abrir la raíz del repositorio en Android Studio y ejecutar ▶.
+3. En el emulador, la app se conecta a `http://10.0.2.2:8080/api/`. Para un teléfono físico, cambiar `BASE_URL` en `app/src/main/java/cl/aldemar/trazamar/data/remote/RetrofitInstance.kt` por la IP del PC.
 
-- **usuarios** (id, username, passwordHash, nombreCompleto, rol, activo)
-- **centros** (id, nombre, código)
-- **trenes** (id, nombre, centroId)
-- **lineas** (id, nombre, trenId)
-- **muestras** (id, centroId, trenId, lineaId, fecha, hora, tramoMetros, operadorId, conteoIndividuos,
-  observaciones, calibrePromedio/Min/Max, pesoMuestra, fotoUrl, estado, comentarioSupervisor, supervisorId,
-  fechaRevision)
+### Instalar la APK
+1. Descargar la APK release desde AVA o desde la sección Releases.
+2. En el teléfono, permitir "instalar apps desconocidas" e instalarla.
 
-Flujo de estados de una muestra: `borrador → pendiente → (validada | observada) → corregida → pendiente → validada`.
+## Pruebas
+- Pruebas unitarias en `app/src/test` (`./gradlew test`).
+- Evidencia de cobertura: *(pendiente)*.
+
+## Tecnologías
+Kotlin · Jetpack Compose · Material 3 · MVVM · Room · DataStore · Retrofit · Gson · Coil · Spring Boot · Spring Data JPA · SQLite · springdoc-openapi (Swagger)
